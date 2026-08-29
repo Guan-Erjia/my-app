@@ -4,6 +4,7 @@ import {
   Descendant,
   Editor,
   Node,
+  Operation,
   Element as SlateElement,
   Transforms,
   createEditor,
@@ -189,12 +190,28 @@ export default function RichTextExample() {
   )
 
   const editor = useMemo(() => withHistory(withReact(createEditor())), [])
+  const operations: Operation[] = []
+  let timer: ReturnType<typeof setTimeout>
 
   const { apply } = editor
 
-  editor.apply = operation => {
-    console.log('Slate Operation:', operation)
+  editor.apply = (operation) => {
+    // Slate 立即执行
     apply(operation)
+
+    // 不保存 selection
+    if (operation.type === 'set_selection') return
+
+    // 收集 operation
+    operations.push(operation)
+
+    // 防抖
+    clearTimeout(timer)
+    timer = setTimeout(() => {
+      const batch = operations
+      console.log('发送 Operations:', JSON.parse(JSON.stringify(batch)))
+      operations.length = 0
+    }, 4000)
   }
 
 
