@@ -9,9 +9,16 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@emotion/css": "^11.13.5",
+    "@types/is-hotkey": "^0.1.10",
+    "is-hotkey": "^0.2.0",
     "next": "16.3.3",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "slate": "^0.126.2",
+    "slate-dom": "^0.126.0",
+    "slate-history": "^0.113.1",
+    "slate-react": "^0.126.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

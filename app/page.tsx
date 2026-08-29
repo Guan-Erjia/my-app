@@ -1,69 +1,227 @@
-import Image from "next/image";
+'use client';
+import { PointerEvent, useCallback, useMemo } from 'react'
+import {
+  Descendant,
+  Editor,
+  Node,
+  Element as SlateElement,
+  Transforms,
+  createEditor,
+} from 'slate'
+import { withHistory } from 'slate-history'
+import {
+  Editable,
+  RenderElementProps,
+  RenderLeafProps,
+  Slate,
+  useSlate,
+  withReact,
+} from 'slate-react'
+import { Button, Icon, } from './components/index'
+import {
+  CustomEditor,
+  CustomElementType,
+  CustomTextKey,
+} from './components/custom-types.d'
+import SideBar from './components/SideBar';
+import { Redo, Undo } from './components/UndoRedo';
 
-export default function Home() {
+
+const toggleBlock = (editor: CustomEditor, format: CustomElementType) => {
+  const isActive = isBlockActive(
+    editor,
+    format,
+  )
+  const newProperties = {
+    type: isActive ? 'paragraph' : format,
+  }
+  Transforms.setNodes<SlateElement>(editor, newProperties)
+
+}
+
+const toggleMark = (editor: CustomEditor, format: CustomTextKey) => {
+  const isActive = isMarkActive(editor, format)
+
+  if (isActive) {
+    Editor.removeMark(editor, format)
+  } else {
+    Editor.addMark(editor, format, true)
+  }
+}
+
+const isBlockActive = (
+  editor: CustomEditor,
+  format: CustomElementType,
+) => {
+  const { selection } = editor
+  if (!selection) return false
+
+  const [match] = Array.from(
+    Editor.nodes(editor, {
+      at: Editor.unhangRange(editor, selection),
+      match: n => {
+        if (Node.isElement(n)) {
+          return n.type === format
+        }
+        return false
+      },
+    })
+  )
+
+  return !!match
+}
+
+const isMarkActive = (editor: CustomEditor, format: CustomTextKey) => {
+  const marks = Editor.marks(editor)
+  return marks ? marks[format] === true : false
+}
+
+
+const BlockButton = ({ format, icon }: {
+  format: CustomElementType
+  icon: string
+}) => {
+  const editor = useSlate()
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <Button
+      active={isBlockActive(
+        editor,
+        format,
+      )}
+      onPointerDown={(event: PointerEvent<HTMLButtonElement>) =>
+        event.preventDefault()
+      }
+      onClick={() => toggleBlock(editor, format)}
+    >
+      <Icon>{icon}</Icon>
+    </Button>
+  )
+}
+
+
+const MarkButton = ({ format, icon }: {
+  format: CustomTextKey
+  icon: string
+}) => {
+  const editor = useSlate()
+  return (
+    <Button
+      active={isMarkActive(editor, format)}
+      onPointerDown={(event: PointerEvent<HTMLButtonElement>) =>
+        event.preventDefault()
+      }
+      onClick={() => toggleMark(editor, format)}
+    >
+      <Icon>{icon}</Icon>
+    </Button>
+  )
+}
+
+
+const initialValue: Descendant[] = Array.from({ length: 30 }, (item, index) => ([
+  {
+    type: 'heading-one',
+    children: [{ text: `Episode ${index + 1}: The Beginning` }],
+    index: index + 1
+  },
+  {
+    type: 'heading-two',
+    children: [{ text: `sub title` }],
+  },
+  {
+    type: 'paragraph',
+    children: [
+      {
+        text: 'Emma arrives in a quiet coastal town, hoping to start a new life after leEmma arrives in a quiet coastal town, hoping to start a new life after leaving the city behindEmma arrives in a quiet coastal town, hoping to start a new life after leaving the city behindEmma arrives in a quiet coastal town, hoping to start a new life after leaving the city behindEmma arrives in a quiet coastal town, hoping to start a new life after leaving the city behindEmma arrives in a quiet coastal town, hoping to start a new life after leaving the city behindEmma arrives in a quiet coastal town, hoping to start a new life after leaving the city behindEmma arrives in a quiet coastal town, hoping to start a new life after leaving the city behindEmma arrives in a quiet coastal town, hoping to start a new life after leaving the city behindEmma arrives in a quiet coastal town, hoping to start a new life after leaving the city behindEmma arrives in a quiet coastal town, hoping to start a new life after leaving the city behindEmma arrives in a quiet coastal town, hoping to start a new life after leaving the city behindEmma arrives in a quiet coastal town, hoping to start a new life after leaving the city behindEmma arrives in a quiet coastal town, hoping to start a new life after leaving the city behindaving the city behind.',
+      },
+    ],
+  },
+] as Descendant[])).flat()
+
+
+export default function RichTextExample() {
+  const renderElement = useCallback(
+    ({ attributes, children, element }: RenderElementProps) => {
+      switch (element.type) {
+        case 'heading-one':
+          return (
+            <h1 {...attributes} id={element.index + ''}>
+              {children}
+            </h1>
+          )
+        case 'heading-two':
+          return (
+            <h2   {...attributes}>
+              {children}
+            </h2>
+          )
+        default:
+          return (
+            <p   {...attributes}>
+              {children}
+            </p>
+          )
+      }
+    },
+    []
+  )
+  const renderLeaf = useCallback(
+    ({ attributes, children, leaf }: RenderLeafProps) => {
+      if (leaf.bold) {
+        children = <strong>{children}</strong>
+      }
+
+      if (leaf.code) {
+        children = <code>{children}</code>
+      }
+
+      if (leaf.italic) {
+        children = <em>{children}</em>
+      }
+
+      if (leaf.underline) {
+        children = <u>{children}</u>
+      }
+
+      return <span {...attributes}>{children}</span>
+    },
+    []
+  )
+
+  const editor = useMemo(() => withHistory(withReact(createEditor())), [])
+
+  const { apply } = editor
+
+  editor.apply = operation => {
+    console.log('Slate Operation:', operation)
+    apply(operation)
+  }
+
+
+  return (
+    <Slate editor={editor} initialValue={initialValue} >
+      <div className="h-full flex">
+        <SideBar />
+        <div className="h-full flex flex-col">
+          <div className="px-6 py-4 border-b mb-5 flex items-center gap-4 border-gray-200 relative">
+            <Undo />
+            <Redo />
+            <MarkButton format="bold" icon="format_bold" />
+            <MarkButton format="italic" icon="format_italic" />
+            <MarkButton format="underline" icon="format_underlined" />
+            <BlockButton format="heading-one" icon="looks_one" />
+            <BlockButton format="heading-two" icon="looks_two" />
+          </div>
+          <Editable
+            className="min-h-0 p-4 grow overflow-y-auto"
+            renderElement={renderElement}
+            renderLeaf={renderLeaf}
+            placeholder="Enter some rich text…"
+            spellCheck
+            autoFocus
+          />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
+      </div>
+    </Slate>
+  )
 }
