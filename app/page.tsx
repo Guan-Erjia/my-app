@@ -1,6 +1,7 @@
 'use client';
-import { createElement, PointerEvent, useCallback, useMemo } from 'react'
+import { createElement, PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  Descendant,
   Editor,
   Node,
   Operation,
@@ -12,7 +13,6 @@ import {
 import { withHistory } from 'slate-history'
 import {
   Editable,
-  ReactEditor,
   RenderElementProps,
   RenderLeafProps,
   Slate,
@@ -27,8 +27,6 @@ import {
 } from './components/custom-types.d'
 import SideBar from './components/SideBar';
 import { Redo, Undo } from './components/UndoRedo';
-import { initialValue } from './components/initValue';
-import { DOMEditor } from 'slate-dom';
 
 
 const toggleBlock = (editor: CustomEditor, format: CustomElementType, level?: number) => {
@@ -130,98 +128,173 @@ const MarkButton = ({ format, icon }: {
   )
 }
 
+const renderElement = ({ attributes, children, element }: RenderElementProps) => {
+  switch (element.type) {
+    case 'heading':
+      return createElement(
+        `h${element.level}`,
+        {
+          ...attributes,
+          id: element.children.map(child => Node.string(child)).join(''),
+        },
+        children
+      )
+    default:
+      return (
+        <p   {...attributes}>
+          {children}
+        </p>
+      )
+  }
+}
+const renderLeaf = ({ attributes, children, leaf }: RenderLeafProps) => {
+  if (leaf.bold) {
+    children = <strong>{children}</strong>
+  }
+
+  if (leaf.code) {
+    children = <code>{children}</code>
+  }
+
+  if (leaf.italic) {
+    children = <em>{children}</em>
+  }
+
+  if (leaf.underline) {
+    children = <u>{children}</u>
+  }
+
+  return <span {...attributes}>{children}</span>
+}
+
 export default function RichTextExample() {
-  const renderElement = useCallback(
-    ({ attributes, children, element }: RenderElementProps) => {
-      switch (element.type) {
-        case 'heading':
 
-          return createElement(
-            `h${element.level}`,
-            {
-              ...attributes,
-              id: element.children.map(child => Node.string(child)).join(''),
+  const [initialValue, setInitialValue] = useState<Descendant[] | null>(null)
+
+  const operationsRef = useRef<Operation[]>([])
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const editor = useMemo(() => {
+    const editor = withHistory(withReact(createEditor()))
+
+    const { apply } = editor
+
+    editor.apply = (operation) => {
+      apply(operation)
+
+      operationsRef.current.push(operation)
+
+      // 防抖
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+      }
+
+      timerRef.current = setTimeout(async () => {
+        const batch = operationsRef.current
+
+        if (!batch.length) {
+          return
+        }
+
+        // 先清空，避免请求期间又产生操作
+        operationsRef.current = []
+
+        console.log(
+          '发送 Operations:',
+          JSON.parse(JSON.stringify(batch))
+        )
+
+        try {
+          const response = await fetch('/api/document', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
             },
-            children
-          )
-        case 'paragraph':
-          return (
-            <p {...attributes}>
-              {children}
-            </p>
-          )
-        default:
-          return (
-            <p   {...attributes}>
-              {children}
-            </p>
-          )
-      }
-    },
-    []
-  )
-  const renderLeaf = useCallback(
-    ({ attributes, children, leaf }: RenderLeafProps) => {
-      if (leaf.bold) {
-        children = <strong>{children}</strong>
-      }
+            body: JSON.stringify(batch),
+          })
 
-      if (leaf.code) {
-        children = <code>{children}</code>
-      }
+          if (!response.ok) {
+            throw new Error('Failed to save document')
+          }
 
-      if (leaf.italic) {
-        children = <em>{children}</em>
-      }
+          const document = await response.json()
 
-      if (leaf.underline) {
-        children = <u>{children}</u>
-      }
+          console.log('服务端最新文档:', document)
+        } catch (error) {
+          console.error('保存失败:', error)
 
-      return <span {...attributes}>{children}</span>
-    },
-    []
-  )
+          // 如果你希望失败后重试
+          operationsRef.current.unshift(...batch)
+        }
+      }, 1000)
+    }
 
-  const editor = useMemo(() => withHistory(withReact(createEditor())), [])
-  const operations: Operation[] = []
-  let timer: ReturnType<typeof setTimeout>
+    return editor
+  }, [])
 
-  const { apply } = editor
+  // 获取服务端文档
+  useEffect(() => {
+    fetch('/api/document')
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Failed to load document')
+        }
 
-  editor.apply = (operation) => {
-    // Slate 立即执行
-    apply(operation)
+        return response.json()
+      })
+      .then(document => {
+        setInitialValue(document)
+      })
+      .catch(error => {
+        console.error('加载文档失败:', error)
+      })
+  }, [])
 
-    // 不保存 selection
-    if (operation.type === 'set_selection') return
-
-    // 收集 operation
-    operations.push(operation)
-
-    // 防抖
-    clearTimeout(timer)
-    timer = setTimeout(() => {
-      const batch = operations
-      console.log('发送 Operations:', JSON.parse(JSON.stringify(batch)))
-      operations.length = 0
-    }, 4000)
+  if (!initialValue) {
+    return <div>Loading...</div>
   }
 
   return (
-    <Slate editor={editor} initialValue={initialValue} >
+    <Slate
+      editor={editor}
+      initialValue={initialValue}
+    >
       <div className="h-full flex">
         <SideBar />
+
         <div className="h-full flex flex-col">
           <div className="px-6 py-4 border-b mb-5 flex items-center gap-4 border-gray-200 relative">
             <Undo />
             <Redo />
-            <MarkButton format="bold" icon="format_bold" />
-            <MarkButton format="italic" icon="format_italic" />
-            <MarkButton format="underline" icon="format_underlined" />
-            <BlockButton format="heading" level={1} icon="looks_one" />
-            <BlockButton format="heading" level={2} icon="looks_two" />
+
+            <MarkButton
+              format="bold"
+              icon="format_bold"
+            />
+
+            <MarkButton
+              format="italic"
+              icon="format_italic"
+            />
+
+            <MarkButton
+              format="underline"
+              icon="format_underlined"
+            />
+
+            <BlockButton
+              format="heading"
+              level={1}
+              icon="looks_one"
+            />
+
+            <BlockButton
+              format="heading"
+              level={2}
+              icon="looks_two"
+            />
           </div>
+
           <Editable
             className="min-h-0 p-4 grow overflow-y-auto"
             renderElement={renderElement}
