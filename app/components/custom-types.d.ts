@@ -4,7 +4,8 @@ import { HistoryEditor } from 'slate-history'
 
 
 export type HeadingElement = {
-  type: 'heading-one'
+  type: 'heading',
+  level: number,
   children: Descendant[]
   index: number
 }
@@ -20,7 +21,7 @@ export type ParagraphElement = {
 }
 
 
-export type CustomElement = HeadingElement | HeadingTwoElement | ParagraphElement
+export type CustomElement = HeadingElement | ParagraphElement
 
 
 export type CustomElementType = CustomElement['type']

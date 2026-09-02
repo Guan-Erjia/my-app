@@ -1,10 +1,10 @@
 'use client';
-import { PointerEvent, useCallback, useMemo } from 'react'
+import { createElement, PointerEvent, useCallback, useMemo } from 'react'
 import {
-  Descendant,
   Editor,
   Node,
   Operation,
+  Path,
   Element as SlateElement,
   Transforms,
   createEditor,
@@ -12,6 +12,7 @@ import {
 import { withHistory } from 'slate-history'
 import {
   Editable,
+  ReactEditor,
   RenderElementProps,
   RenderLeafProps,
   Slate,
@@ -26,15 +27,19 @@ import {
 } from './components/custom-types.d'
 import SideBar from './components/SideBar';
 import { Redo, Undo } from './components/UndoRedo';
+import { initialValue } from './components/initValue';
+import { DOMEditor } from 'slate-dom';
 
 
-const toggleBlock = (editor: CustomEditor, format: CustomElementType) => {
+const toggleBlock = (editor: CustomEditor, format: CustomElementType, level?: number) => {
   const isActive = isBlockActive(
     editor,
     format,
+    level
   )
   const newProperties = {
     type: isActive ? 'paragraph' : format,
+    ...(level !== undefined ? { level } : {}),
   }
   Transforms.setNodes<SlateElement>(editor, newProperties)
 
@@ -53,6 +58,7 @@ const toggleMark = (editor: CustomEditor, format: CustomTextKey) => {
 const isBlockActive = (
   editor: CustomEditor,
   format: CustomElementType,
+  level?: number
 ) => {
   const { selection } = editor
   if (!selection) return false
@@ -62,7 +68,11 @@ const isBlockActive = (
       at: Editor.unhangRange(editor, selection),
       match: n => {
         if (Node.isElement(n)) {
-          return n.type === format
+          if (n.type === 'heading') {
+            return n.type === format && (level === undefined || 'level' in n && n.level === level)
+          } else {
+            return n.type === format
+          }
         }
         return false
       },
@@ -78,9 +88,10 @@ const isMarkActive = (editor: CustomEditor, format: CustomTextKey) => {
 }
 
 
-const BlockButton = ({ format, icon }: {
+const BlockButton = ({ format, icon, level }: {
   format: CustomElementType
-  icon: string
+  icon: string,
+  level?: number
 }) => {
   const editor = useSlate()
   return (
@@ -88,11 +99,12 @@ const BlockButton = ({ format, icon }: {
       active={isBlockActive(
         editor,
         format,
+        level
       )}
       onPointerDown={(event: PointerEvent<HTMLButtonElement>) =>
         event.preventDefault()
       }
-      onClick={() => toggleBlock(editor, format)}
+      onClick={() => toggleBlock(editor, format, level)}
     >
       <Icon>{icon}</Icon>
     </Button>
@@ -118,43 +130,25 @@ const MarkButton = ({ format, icon }: {
   )
 }
 
-
-const initialValue: Descendant[] = Array.from({ length: 30 }, (item, index) => ([
-  {
-    type: 'heading-one',
-    children: [{ text: `Episode ${index + 1}: The Beginning` }],
-    index: index + 1
-  },
-  {
-    type: 'heading-two',
-    children: [{ text: `sub title` }],
-  },
-  {
-    type: 'paragraph',
-    children: [
-      {
-        text: 'Emma arrives in a quiet coastal town, hoping to start a new life after leEmma arrives in a quiet coastal town, hoping to start a new life after leaving the city behindEmma arrives in a quiet coastal town, hoping to start a new life after leaving the city behindEmma arrives in a quiet coastal town, hoping to start a new life after leaving the city behindEmma arrives in a quiet coastal town, hoping to start a new life after leaving the city behindEmma arrives in a quiet coastal town, hoping to start a new life after leaving the city behindEmma arrives in a quiet coastal town, hoping to start a new life after leaving the city behindEmma arrives in a quiet coastal town, hoping to start a new life after leaving the city behindEmma arrives in a quiet coastal town, hoping to start a new life after leaving the city behindEmma arrives in a quiet coastal town, hoping to start a new life after leaving the city behindEmma arrives in a quiet coastal town, hoping to start a new life after leaving the city behindEmma arrives in a quiet coastal town, hoping to start a new life after leaving the city behindEmma arrives in a quiet coastal town, hoping to start a new life after leaving the city behindEmma arrives in a quiet coastal town, hoping to start a new life after leaving the city behindaving the city behind.',
-      },
-    ],
-  },
-] as Descendant[])).flat()
-
-
 export default function RichTextExample() {
   const renderElement = useCallback(
     ({ attributes, children, element }: RenderElementProps) => {
       switch (element.type) {
-        case 'heading-one':
-          return (
-            <h1 {...attributes} id={element.index + ''}>
-              {children}
-            </h1>
+        case 'heading':
+
+          return createElement(
+            `h${element.level}`,
+            {
+              ...attributes,
+              id: element.children.map(child => Node.string(child)).join(''),
+            },
+            children
           )
-        case 'heading-two':
+        case 'paragraph':
           return (
-            <h2   {...attributes}>
+            <p {...attributes}>
               {children}
-            </h2>
+            </p>
           )
         default:
           return (
@@ -214,7 +208,6 @@ export default function RichTextExample() {
     }, 4000)
   }
 
-
   return (
     <Slate editor={editor} initialValue={initialValue} >
       <div className="h-full flex">
@@ -226,8 +219,8 @@ export default function RichTextExample() {
             <MarkButton format="bold" icon="format_bold" />
             <MarkButton format="italic" icon="format_italic" />
             <MarkButton format="underline" icon="format_underlined" />
-            <BlockButton format="heading-one" icon="looks_one" />
-            <BlockButton format="heading-two" icon="looks_two" />
+            <BlockButton format="heading" level={1} icon="looks_one" />
+            <BlockButton format="heading" level={2} icon="looks_two" />
           </div>
           <Editable
             className="min-h-0 p-4 grow overflow-y-auto"

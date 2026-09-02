@@ -15,10 +15,17 @@
     "next": "16.3.3",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "rehype-stringify": "^10.0.1",
+    "remark": "^15.0.1",
+    "remark-frontmatter": "^5.0.0",
+    "remark-gfm": "^4.0.1",
+    "remark-parse": "^11.0.0",
+    "remark-rehype": "^11.1.2",
     "slate": "^0.126.2",
     "slate-dom": "^0.126.0",
     "slate-history": "^0.113.1",
-    "slate-react": "^0.126.4"
+    "slate-react": "^0.126.4",
+    "unified": "^11.0.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
