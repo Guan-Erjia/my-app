@@ -1,4 +1,4 @@
-import { Descendant, BaseEditor, BaseRange, Range, Element } from 'slate'
+import { Descendant, BaseEditor, BaseRange } from 'slate'
 import { ReactEditor } from 'slate-react'
 import { HistoryEditor } from 'slate-history'
 
